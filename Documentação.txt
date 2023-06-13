@@ -6,3 +6,275 @@ npm init adonis-ts-app@latest arquivos/
 depois instalei o lucid que pertence ao adonis e o configurei
 
 Configurei também o CORS para o futuro front-end
+
+node ace make:model Moment 
+
+No nosso model eu crio as tabelas que estarão no banco de dados Sqlite definido
+anteriormente
+
+  @column()
+  public title: string
+
+  @column()
+  public description: string
+
+  @column()
+  public image: string
+
+
+
+
+e os coloquei nas nossas migrations
+public async up () {
+    this.schema.createTable(this.tableName, (table) => {
+      table.increments('id')
+      table.string("title")
+      table.string("description")
+      table.string("image")
+
+
+e mandamos p migration com
+ node ace migration:run
+
+
+Agora vamos para os controllers
+criei para teste uma função assíncrona:
+export default class MomentsController {
+    public async store() {
+        return {
+            msg: "Deu certo",
+        }
+    }
+
+
+e a puxei nas rotas com um resource para poupar código:
+
+    Route.resource("/moments", "MomentsController").apiOnly()
+
+
+
+
+
+			Inserindo dados no BD ---------------------------
+
+Primeiro, fazemos as seguintes importações no nosso controller:
+
+import type { HttpContextContract } from '@ioc:Adonis/Core/HttpContext'
+import Moment from 'App/Models/Moment'
+
+
+
+no controller:
+   public async store({request, response}: HttpContextContract) { //metodo do C
+
+    const body = request.body()
+    const moment = await Moment.create(body)	//Esperar banco
+
+    response.status(201)		//ok
+
+    return{
+        message: 'Criado com sucesso!',
+        data: moment,
+    }
+    }
+
+
+
+
+			Upload de imagem --------------------------
+
+npm i uuid
+
+import {v4 as uuidv4} from 'uuid'
+import { Application } from '@adonisjs/core/build/standalone'
+
+
+
+criamos uma nova classe 
+ private validationOptions = {
+        types: ["image"],
+        size: '2mb',
+    }
+
+
+const image = request.file('image', this.validationOptions) // Metodo inserção
+
+agora fazemos uma const que usará os metadados da imagem que virá e 
+fará um novo nome único
+        const imageName = `${uuidv4()}.${image.extname}`
+
+
+Agora vamos ter que colocar esse nome de nossa imagem no corpo da minha req
+para que salve no banco o nome da minha img pq a img já está sendo salva
+nas pastas:
+
+if(image) {
+        const imageName = `${uuidv4()}.${image.extname}`
+
+        await image.move(Application.tmpPath('uploads'), {
+            name: imageName
+        })
+
+        body.image = imageName
+    }
+
+Agora, indo ao nosso postman e mandando no body com um form-data um title, 
+descption e uma image e dando nosso send já conseguimos enviar e ver a nossa
+imagem em nosso banco e também em tmp/uploads
+
+
+
+
+			resgatando nossos reg -------------------
+ public async index() {}
+
+Esse cara será o responsável por fazer isso.
+
+public async index() {
+        const moments = await Moment.all()
+
+        return {
+            data: moments
+        }
+    } 
+ 
+
+
+
+
+			Registro individual ------------------
+
+  public async show({params}: HttpContextContract) {
+        const moment = await Moment.findOrFail(params.id)
+
+        return {
+            data: moment,
+        }
+    }
+
+
+
+
+			Removendo Registros ------------------------------
+
+ public async destroy({params}: HttpContextContract) {
+        const moment = await Moment.findOrFail(params.id)
+
+        await moment.delete()
+        return {
+            message: 'Excluido com sucesso!',
+            data: moment,
+        }
+    }
+
+
+
+
+			Update de registros -----------------------------
+
+  public async update({params, request}: HttpContextContract) {
+        const body = request.body()
+        const moment = await Moment.findOrFail(params.id)
+
+        moment.title = body.title
+        moment.description = body.description
+
+        if(moment.image != body.image  || !moment.image) {
+            const image = request.file('image', this.validationOptions)
+            if(image) {
+                const imageName = `${uuidv4()}.${image.extname}`
+    
+                await image.move(Application.tmpPath('uploads'), {
+                    name: imageName
+                })
+        
+                moment.image = imageName
+            }
+        }
+        await moment.save()
+
+        return {
+            message: 'Atualizado com sucesso',
+            data: moment,
+        }
+    }
+
+
+
+				CRUD FINALIZADO 
+
+			Criando o Model Component -----------------------
+
+node ace make:model Coment -m
+
+NO NOSSO MODEL DE coMENT DEFINI AS TABELAS
+export default class Coment extends BaseModel {
+  @column({ isPrimary: true })
+  public id: number
+
+  @column()
+  public username: string
+
+  @column()
+  public text: string
+
+
+e no nosso migrations
+ public async up () {
+    this.schema.createTable(this.tableName, (table) => {
+      table.increments('id')
+      table.string('username')
+      table.string('text')
+
+      table.integer('moment_id').unsigned().references('moments.id').onDelete("CASCADE")
+
+rodamos com node ace migration:run
+
+precisamos também configurar nosso model de moment para receber o comment:
+
+import Coment from './Coment'
+
+export default class Moment extends BaseModel {
+  @hasMany(() => Coment)
+  public comments: HasMany<typeof Coment>
+
+
+
+
+
+		Também precisamos criar a possibilidade de ------------------
+				criar comentários
+	
+
+export default class CommentsController {
+    public async store({request, params, response}: HttpContextContract) {
+        const body = request.body()
+        const momentId = params.momentId
+
+        await Moment.findOrFail(momentId)
+
+        body.momentId = momentId
+
+        const comment = await Coment.create(body)
+
+        response.status(201)
+
+        return {
+            message: "COmentário adicionado com sucesso",
+            data: comment
+        }
+    }
+
+
+
+
+
+		Exibindo os comentários junto aos momentos ---------------
+
+public async index() {
+        const moments = await Moment.query().preload("comments")
+
+        return {
+            data: moments
+        }
+    }  			
