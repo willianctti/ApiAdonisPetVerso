@@ -1,0 +1,8 @@
+               Configurações -------------------------------
+
+primeiro instalei o adonis e o executei usando o postman
+npm init adonis-ts-app@latest arquivos/
+
+depois instalei o lucid que pertence ao adonis e o configurei
+
+Configurei também o CORS para o futuro front-end
